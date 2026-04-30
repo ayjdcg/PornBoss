@@ -542,6 +542,7 @@ func parseJavDatabaseMovieInfo(root *html.Node) *Info {
 
 	info := &Info{
 		Title:       title,
+		Series:      strings.TrimSpace(fields.Series),
 		Code:        strings.TrimSpace(fields.Code),
 		ReleaseUnix: parseDateUnix(fields.ReleaseDate),
 		DurationMin: parseRuntimeMinutes(fields.Runtime),
@@ -593,6 +594,7 @@ func parseJavDatabaseCoverURL(root *html.Node, pageURL string) string {
 
 type javDatabaseMovieFields struct {
 	Title       string
+	Series      string
 	Code        string
 	ReleaseDate string
 	Runtime     string
@@ -701,6 +703,10 @@ func assignJavDatabaseMovieField(out *javDatabaseMovieFields, label string, line
 	case labelHasAny(label, []string{"runtime", "duration"}):
 		if out.Runtime == "" {
 			out.Runtime = strings.TrimSpace(collectValueAfterBold(bold))
+		}
+	case labelHasAny(label, []string{"series", "serial"}):
+		if out.Series == "" {
+			out.Series = strings.TrimSpace(collectValueAfterBold(bold))
 		}
 	case labelHasAny(label, []string{"genre", "genres"}):
 		if len(out.Tags) == 0 {

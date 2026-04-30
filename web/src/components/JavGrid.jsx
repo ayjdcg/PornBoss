@@ -151,6 +151,7 @@ function JavCard({
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
   const codeText = item?.code?.trim()
+  const seriesText = item?.series?.trim()
   const mainTitle = item?.title || item?.code || zh('未知标题', 'Untitled')
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
   const videos = item?.videos || []
@@ -313,6 +314,11 @@ function JavCard({
             <span>{releaseText}</span>
           </span>
         </div>
+        {seriesText ? (
+          <div className="text-xs text-gray-600">
+            {zh('系列', 'Series')}: <span className="font-medium text-gray-700">{seriesText}</span>
+          </div>
+        ) : null}
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <div className="flex flex-wrap gap-1">
             {item.idols.map((idol) => (

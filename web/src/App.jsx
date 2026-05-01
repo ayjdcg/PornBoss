@@ -1002,7 +1002,9 @@ export default function App() {
 
   const javTagPickerExisting = useMemo(() => {
     if (!javTagPickerItem) return []
-    return Array.isArray(javTagPickerItem?.tags) ? javTagPickerItem.tags.map((tag) => String(tag.id)) : []
+    return Array.isArray(javTagPickerItem?.tags)
+      ? javTagPickerItem.tags.map((tag) => String(tag.id))
+      : []
   }, [javTagPickerItem])
 
   const javTagPickerDirty = useMemo(() => {

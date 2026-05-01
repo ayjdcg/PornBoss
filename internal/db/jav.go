@@ -295,8 +295,8 @@ func RemoveJavTagFromJavs(ctx context.Context, tagID int64, javIDs []int64) erro
 	return nil
 }
 
-// ReplaceJavUserTags replaces user-defined tags for the given JAV entries.
-func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
+// ReplaceJavTags replaces all tags for the given JAV entries.
+func ReplaceJavTags(ctx context.Context, javIDs, tagIDs []int64) error {
 	cleanJavIDs := uniqueInt64s(javIDs)
 	if len(cleanJavIDs) == 0 {
 		return nil
@@ -307,7 +307,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 		var count int64
 		if err := common.DB.WithContext(ctx).
 			Model(&models.JavTag{}).
-			Where("id IN ? AND provider = ?", cleanTagIDs, int(jav.ProviderUser)).
+			Where("id IN ?", cleanTagIDs).
 			Count(&count).Error; err != nil {
 			return fmt.Errorf("find jav tags: %w", err)
 		}
@@ -317,9 +317,7 @@ func ReplaceJavUserTags(ctx context.Context, javIDs, tagIDs []int64) error {
 	}
 
 	return common.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.
-			Where("jav_id IN ? AND jav_tag_id IN (SELECT id FROM jav_tag WHERE provider = ?)", cleanJavIDs, int(jav.ProviderUser)).
-			Delete(&models.JavTagMap{}).Error; err != nil {
+		if err := tx.Where("jav_id IN ?", cleanJavIDs).Delete(&models.JavTagMap{}).Error; err != nil {
 			return fmt.Errorf("delete jav tag map: %w", err)
 		}
 		if len(cleanTagIDs) == 0 {
@@ -780,6 +778,7 @@ func saveJavInfoTx(tx *gorm.DB, info *jav.Info, now ...time.Time) (*models.Jav, 
 	}
 	javRec.Code = info.Code
 	javRec.Title = info.Title
+	javRec.Series = info.Series
 	javRec.ReleaseUnix = info.ReleaseUnix
 	javRec.DurationMin = info.DurationMin
 	javRec.Provider = int(jav.ParseProvider(int(info.Provider)))

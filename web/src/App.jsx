@@ -975,9 +975,7 @@ export default function App() {
   const openJavTagEditor = useCallback(
     (item) => {
       if (!item) return
-      const initial = Array.isArray(item?.tags)
-        ? item.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-        : []
+      const initial = Array.isArray(item?.tags) ? item.tags.map((tag) => String(tag.id)) : []
       setJavTagPickerItem(item)
       setJavTagPickerSelected(initial)
       loadJavTags()
@@ -1004,9 +1002,7 @@ export default function App() {
 
   const javTagPickerExisting = useMemo(() => {
     if (!javTagPickerItem) return []
-    return Array.isArray(javTagPickerItem?.tags)
-      ? javTagPickerItem.tags.filter((tag) => isUserJavTag(tag)).map((tag) => String(tag.id))
-      : []
+    return Array.isArray(javTagPickerItem?.tags) ? javTagPickerItem.tags.map((tag) => String(tag.id)) : []
   }, [javTagPickerItem])
 
   const javTagPickerDirty = useMemo(() => {
@@ -1074,18 +1070,17 @@ export default function App() {
       await replaceJavTagsForItems([javId], selectedIds)
       useStore.setState((state) => {
         if (!Array.isArray(state.javItems)) return {}
-        const userTagMap = new Map(javUserTagOptions.map((tag) => [tag.id, tag]))
+        const tagMap = new Map(javTagOptions.map((tag) => [tag.id, tag]))
         const next = state.javItems.map((item) => {
           if (item.id !== javId) return item
           const existingTags = Array.isArray(item.tags) ? item.tags : []
           for (const tag of existingTags) {
-            if (isUserJavTag(tag) && !userTagMap.has(tag.id)) {
-              userTagMap.set(tag.id, tag)
+            if (!tagMap.has(tag.id)) {
+              tagMap.set(tag.id, tag)
             }
           }
-          const nextUserTags = selectedIds.map((id) => userTagMap.get(id)).filter(Boolean)
-          const nonUserTags = existingTags.filter((tag) => !isUserJavTag(tag))
-          return { ...item, tags: [...nonUserTags, ...nextUserTags] }
+          const nextTags = selectedIds.map((id) => tagMap.get(id)).filter(Boolean)
+          return { ...item, tags: nextTags }
         })
         return { javItems: next }
       })

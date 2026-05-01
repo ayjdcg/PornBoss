@@ -175,7 +175,7 @@ func replaceJavTagsForItems(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "jav_ids required"})
 		return
 	}
-	if err := dbpkg.ReplaceJavUserTags(c.Request.Context(), req.JavIDs, req.TagIDs); err != nil {
+	if err := dbpkg.ReplaceJavTags(c.Request.Context(), req.JavIDs, req.TagIDs); err != nil {
 		logging.Error("replace jav tags error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

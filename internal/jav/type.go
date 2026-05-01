@@ -64,6 +64,7 @@ func PreferredLookupProvider() JavLookupProvider {
 // Info holds basic metadata extracted from a JAV metadata provider.
 type Info struct {
 	Title       string
+	Series      string
 	Code        string
 	ReleaseUnix int64
 	DurationMin int

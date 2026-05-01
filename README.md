@@ -139,6 +139,28 @@ port = 17654
   <img src="screenshot/image1_9.png" style="width: 100%; height: auto;">
 </p>
 
+
+## 不装本地开发环境，怎么调试和打包？
+
+如果你不想在本地安装 Go / Node / npm，可以直接用 GitHub Actions：
+
+1. **远程调试（自动跑检查）**  
+   把代码推到你自己的 fork 后，创建/更新 PR。`ci` 工作流会自动运行：
+   - `go test ./...`
+   - `web` 前端 `npm run lint`
+   - `web` 前端 `npm run build`
+
+2. **远程打包（手动一键出包）**  
+   在 fork 仓库的 **Actions** 页面运行 `package` 工作流，填写：
+   - `branch`：要打包的分支（默认 `main`）
+   - `platform`：目标平台（windows/linux/macos）
+   - `version`：版本号（例如 `v0.2.0`）
+
+   工作流完成后，到该次运行的 **Artifacts** 下载对应的 zip 包即可。
+
+3. **批量平台发布（可选）**  
+   如果你想一次构建四个平台并生成草稿发布页，运行 `release-draft` 工作流即可。
+
 ## 如何升级版本
 
 下载并解压新版本后，把旧版本目录中的 `data/` 复制到新版本目录即可。建议先保留旧版本和旧数据备份，确认新版本稳定运行后再清理旧目录。

@@ -1,4 +1,4 @@
-name: build
+name: package
 
 on:
   workflow_dispatch:
@@ -68,8 +68,9 @@ jobs:
       - name: Build release
         run: bash scripts/cli.sh release "${{ inputs.platform }}" "${{ inputs.version }}"
 
-      - name: Upload artifact
+      - name: Upload packaged zip
         uses: actions/upload-artifact@v6
         with:
-          name: pornboss-${{ inputs.version }}-${{ inputs.platform }}
-          path: release/pornboss-${{ inputs.version }}-${{ inputs.platform }}
+          name: pornboss-${{ inputs.version }}-${{ inputs.platform }}-zip
+          path: release/pornboss-${{ inputs.version }}-${{ inputs.platform }}.zip
+          if-no-files-found: error

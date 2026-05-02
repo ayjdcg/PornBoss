@@ -24,6 +24,12 @@ func TestBuildConfigContentIncludesRequiredDefaults(t *testing.T) {
 	if !strings.Contains(content, "keep-open=yes\n") {
 		t.Fatalf("expected keep-open=yes in mpv config, got %q", content)
 	}
+	if !strings.Contains(content, "osc=no\n") {
+		t.Fatalf("expected osc=no in mpv config, got %q", content)
+	}
+	if !strings.Contains(content, "input-default-bindings=no\n") {
+		t.Fatalf("expected input-default-bindings=no in mpv config, got %q", content)
+	}
 	if !strings.Contains(content, "auto-window-resize=no\n") {
 		t.Fatalf("expected auto-window-resize=no in fixed-size mpv config, got %q", content)
 	}
@@ -33,7 +39,16 @@ func TestBuildConfigContentIncludesRequiredDefaults(t *testing.T) {
 	if !strings.Contains(content, "osd-playing-msg-duration=5000\n") {
 		t.Fatalf("expected osd-playing-msg-duration=5000 in mpv config, got %q", content)
 	}
-	if !strings.Contains(content, "geometry=70%x70%+50%+50%\n") {
+	if !strings.Contains(content, "video-align-y=1\n") {
+		t.Fatalf("expected video-align-y=1 in mpv config, got %q", content)
+	}
+	if !strings.Contains(content, "video-margin-ratio-bottom=0.145\n") {
+		t.Fatalf("expected video-margin-ratio-bottom=0.145 in mpv config, got %q", content)
+	}
+	if !strings.Contains(content, "watch-later-options-remove=sub-pos,osd-margin-y\n") {
+		t.Fatalf("expected watch-later overrides in mpv config, got %q", content)
+	}
+	if !strings.Contains(content, "geometry=80%x80%+50%+50%\n") {
 		t.Fatalf("expected centered default geometry in mpv config, got %q", content)
 	}
 }
@@ -52,6 +67,18 @@ func TestBuildInputConfContentIncludesDefaultScreenshotKey(t *testing.T) {
 
 	if !strings.Contains(content, "e screenshot\n") {
 		t.Fatalf("expected e screenshot in mpv input config, got %q", content)
+	}
+	if !strings.Contains(content, "q no-osd add volume -5\n") {
+		t.Fatalf("expected q no-osd volume down in mpv input config, got %q", content)
+	}
+	if !strings.Contains(content, "w no-osd add volume 5\n") {
+		t.Fatalf("expected w no-osd volume up in mpv input config, got %q", content)
+	}
+	if !strings.Contains(content, "SPACE cycle pause\n") {
+		t.Fatalf("expected SPACE cycle pause in mpv input config, got %q", content)
+	}
+	if !strings.Contains(content, "ESC quit\n") {
+		t.Fatalf("expected ESC quit in mpv input config, got %q", content)
 	}
 }
 
@@ -152,7 +179,7 @@ func TestBuildConfigContentUsesOnlyAutofitForAutomaticWindowSize(t *testing.T) {
 		t.Fatalf("buildConfigContent returned error: %v", err)
 	}
 
-	if !strings.Contains(content, "autofit=70%x70%\n") {
+	if !strings.Contains(content, "autofit=80%x80%\n") {
 		t.Fatalf("expected default autofit size in mpv config, got %q", content)
 	}
 	if strings.Contains(content, "auto-window-resize=no\n") {

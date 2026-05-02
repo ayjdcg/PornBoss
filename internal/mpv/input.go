@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -25,8 +24,8 @@ const playerOntopConfigKey = "player_ontop"
 const playerShowHotkeyHintConfigKey = "player_show_hotkey_hint"
 
 const (
-	defaultWindowWidth  = 70
-	defaultWindowHeight = 70
+	defaultWindowWidth  = 80
+	defaultWindowHeight = 80
 	defaultVolume       = 70
 	defaultOntop        = true
 	startupHintDuration = 5000
@@ -84,13 +83,12 @@ func ensureInputConf() (string, error) {
 	inputConfMu.Lock()
 	defer inputConfMu.Unlock()
 
-	dir := filepath.Join(os.TempDir(), "pornboss")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("create mpv input conf dir: %w", err)
-	}
-
 	if inputConfPath == "" {
-		inputConfPath = filepath.Join(dir, "mpv-input.conf")
+		path, err := sessionPath("mpv-input.conf")
+		if err != nil {
+			return "", err
+		}
+		inputConfPath = path
 	}
 
 	if inputConfReady {
@@ -139,12 +137,13 @@ func buildInputConfContent() (string, error) {
 		case "seek":
 			lines = append(lines, fmt.Sprintf("%s no-osd seek %s exact", keyName, formatAmount(item.Amount)))
 		case "volume":
-			lines = append(lines, fmt.Sprintf("%s add volume %s", keyName, formatAmount(item.Amount)))
+			lines = append(lines, fmt.Sprintf("%s no-osd add volume %s", keyName, formatAmount(item.Amount)))
 		case "screenshot":
 			lines = append(lines, fmt.Sprintf("%s screenshot", keyName))
 		}
 	}
 
+	lines = append(lines, "SPACE cycle pause")
 	lines = append(lines, "ESC quit")
 	return strings.Join(lines, "\n") + "\n", nil
 }
@@ -339,13 +338,12 @@ func ensureConfig() (string, error) {
 	configMu.Lock()
 	defer configMu.Unlock()
 
-	dir := filepath.Join(os.TempDir(), "pornboss")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", fmt.Errorf("create mpv config dir: %w", err)
-	}
-
 	if configPath == "" {
-		configPath = filepath.Join(dir, "mpv.conf")
+		path, err := sessionPath("mpv.conf")
+		if err != nil {
+			return "", err
+		}
+		configPath = path
 	}
 
 	if configReady {
@@ -383,9 +381,14 @@ func buildConfigContent() (string, error) {
 	}
 
 	lines := []string{
+		"osc=no",
+		"input-default-bindings=no",
 		"keep-open=yes",
 		fmt.Sprintf("ontop=%s", mpvBool(ontop)),
 		fmt.Sprintf("osd-playing-msg-duration=%d", startupHintDuration),
+		"video-align-y=1",
+		"video-margin-ratio-bottom=0.145",
+		"watch-later-options-remove=sub-pos,osd-margin-y",
 	}
 	if useAutofit {
 		lines = append(lines, fmt.Sprintf("autofit=%d%%x%d%%", windowWidth, windowHeight))

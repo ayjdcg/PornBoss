@@ -98,7 +98,7 @@ func main() {
 	defer stop()
 
 	common.DB = database
-	applyProxyPort(ctx)
+	applyRuntimeConfig(ctx)
 
 	var activeDirs []models.Directory
 	if dirs, err := db.ListDirectories(ctx); err == nil {
@@ -112,7 +112,6 @@ func main() {
 	screenshotManager := manager.NewScreenshotManager(dataDir, db.GetVideo)
 	coverManager := manager.NewCoverManager(cfg.JavCoverDir, []jav.JavLookupProvider{
 		jav.ThePornDBProvider,
-		jav.JavDBProvider,
 		jav.JavDatabaseProvider,
 	})
 
@@ -177,13 +176,14 @@ func main() {
 	}
 }
 
-func applyProxyPort(ctx context.Context) {
+func applyRuntimeConfig(ctx context.Context) {
 	cfg, err := db.ListConfig(ctx)
 	if err != nil {
-		logging.Error("load proxy config failed: %v", err)
+		logging.Error("load runtime config failed: %v", err)
 		return
 	}
 	util.SetProxyPortFromString(cfg["proxy_port"])
+	jav.SetMetadataLanguage(cfg["jav_metadata_language"])
 }
 
 func buildLogger(baseDir string) (*log.Logger, func(), error) {

@@ -30,7 +30,8 @@ If you want to browse your local collection like JavBus or JavLibrary, without m
 Pornboss extracts JAV codes from filenames, including common patterns such as `IPX-633`, `SSIS-001`, and `ipx633_ch`, then places recognized videos into the JAV library.
 
 - Automatically fetches JAV title, release date, cover art, actresses, tags, and other metadata.
-- Automatically completes actress profiles and supports actress-centric browsing.
+- Automatically fetches and completes actress profiles, with actress-centric browsing supported.
+- Supports Chinese and English JAV metadata fetching, freely switchable.
 - Supports filtering and sorting by code, title, actress, tag, duration, release date, play count, and more.
 - Keeps general videos and JAV titles separate, so homemade clips, short videos, compilations, and uncensored fragments do not get mixed with coded JAV titles.
 
@@ -39,6 +40,7 @@ Pornboss extracts JAV codes from filenames, including common patterns such as `I
 After you add local media folders, Pornboss continuously syncs their contents in the background. Folder changes are detected and refreshed promptly, so newly added, removed, or moved files are reflected in the media library. Indexed videos can be browsed immediately while scanning and metadata completion continue in the background.
 
 - Supports multiple media folders, including local disks, NAS mounts, and removable drives.
+- Lets you freely choose enabled folders, with disabled folder content hidden automatically.
 - Keeps historical index data when a folder is temporarily unavailable, so removable-drive libraries reappear after the drive is connected again.
 - Binds tags, JAV associations, and metadata to video fingerprints, so common move and rename workflows do not require retagging.
 - Stores the database, covers, thumbnails, and runtime data under `data/`; copy this directory to upgrade or migrate.
@@ -50,6 +52,7 @@ Pornboss integrates mpv playback, so clicking a video can launch a lightweight, 
 - Plays the original local file through mpv, avoiding browser playback format limitations.
 - Supports playback options such as default volume, window size, and always-on-top behavior.
 - Supports custom hotkeys for actions such as seeking and volume adjustment.
+- Bundles the [ModernZ](https://github.com/Samillion/ModernZ) OSC script, so mpv playback uses a more modern on-screen player UI by default.
 - Supports taking screenshots at any moment during mpv playback, saved per video under `data/video/{video_id}/screenshot/`.
 - In both the video library and JAV library, the screenshot panel previews all mpv screenshots in timestamp order.
 - The screenshot panel supports enlarged previews, deleting screenshots, and resuming playback directly from a screenshot timestamp.
@@ -89,14 +92,19 @@ The release package includes a `config.toml` file in its root directory. By defa
 port = 17654
 ```
 
-### 3. Add Your Media Folders
+### 3. Set JAV Metadata Language
+
+Open `Global Settings` -> `JAV Metadata`, switch the metadata language to `English`, and save.
+
+### 4. Add Your Media Folders
 
 Open `Global Settings` -> `Directory Management`, then add the local folders that store your videos. Scanning runs in the background, and indexed videos are available immediately without waiting for the full scan to finish.
 
-### 4. Start Using It
+### 5. Start Using It
 
 - Manage general adult videos, short clips, and compilations in `Video` mode.
 - Browse JAV titles by code, title, tag, and actress in `JAV` mode.
+- Choose the folders you want to browse from the top folder dropdown or `Directory Management`.
 - Add custom tags such as `favorite`, `subtitled`, `uncensored`, or `must-watch`.
 - Use search, filters, sorting, and random browsing to find content quickly.
 
@@ -136,6 +144,18 @@ Open `Global Settings` -> `Directory Management`, then add the local folders tha
 
 <p align="center">
   <img src="screenshot/en/image1_9.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image1_10.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image1_11.png" style="width: 100%; height: auto;">
+</p>
+
+<p align="center">
+  <img src="screenshot/en/image1_12.png" style="width: 100%; height: auto;">
 </p>
 
 ## How To Upgrade Versions

@@ -18,6 +18,8 @@ const (
 	ProviderJavDatabase
 	ProviderUser
 	ProviderJavDB
+	ProviderAvmoo
+	ProviderThePornDB
 )
 
 func (p Provider) String() string {
@@ -30,6 +32,10 @@ func (p Provider) String() string {
 		return "user"
 	case ProviderJavDB:
 		return "javdb"
+	case ProviderAvmoo:
+		return "avmoo"
+	case ProviderThePornDB:
+		return "theporndb"
 	default:
 		return "unknown"
 	}
@@ -39,7 +45,7 @@ func (p Provider) String() string {
 func ParseProvider(value int) Provider {
 	p := Provider(value)
 	switch p {
-	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB:
+	case ProviderJavBus, ProviderJavDatabase, ProviderUser, ProviderJavDB, ProviderAvmoo, ProviderThePornDB:
 		return p
 	default:
 		return ProviderUnknown
@@ -58,6 +64,22 @@ var metadataLanguageState = struct {
 	sync.RWMutex
 	value MetadataLanguage
 }{value: MetadataLanguageChinese}
+
+var lookupProvidersByProvider = map[Provider]JavLookupProvider{
+	ProviderJavBus:      JavBusProvider,
+	ProviderJavDatabase: JavDatabaseProvider,
+	ProviderJavDB:       JavDBProvider,
+	ProviderAvmoo:       AvmooProvider,
+	ProviderThePornDB:   ThePornDBProvider,
+}
+
+var metadataLanguageByProvider = map[Provider]MetadataLanguage{
+	ProviderJavBus:      MetadataLanguageChinese,
+	ProviderJavDB:       MetadataLanguageChinese,
+	ProviderAvmoo:       MetadataLanguageChinese,
+	ProviderJavDatabase: MetadataLanguageEnglish,
+	ProviderThePornDB:   MetadataLanguageEnglish,
+}
 
 // ParseMetadataLanguage converts user config to a known metadata language.
 func ParseMetadataLanguage(value string) (MetadataLanguage, bool) {
@@ -96,17 +118,27 @@ func CurrentMetadataLanguage() MetadataLanguage {
 	return metadataLanguageState.value
 }
 
-// PreferredProvider chooses the metadata source based on the configured language.
-func PreferredProvider() Provider {
-	if CurrentMetadataLanguage() == MetadataLanguageEnglish {
-		return ProviderJavDatabase
-	}
-	return ProviderJavBus
+// CurrentMetadataLanguageIsEnglish reports whether the process-wide metadata language is English.
+func CurrentMetadataLanguageIsEnglish() bool {
+	return CurrentMetadataLanguage() == MetadataLanguageEnglish
 }
 
-// ProviderForMetadataLanguage returns the metadata source used for a language.
-func ProviderForMetadataLanguage(value string) Provider {
-	if NormalizeMetadataLanguage(value) == MetadataLanguageEnglish {
+// ProviderMetadataLanguage returns the metadata language produced by a provider.
+func ProviderMetadataLanguage(provider Provider) MetadataLanguage {
+	if language, ok := metadataLanguageByProvider[ParseProvider(int(provider))]; ok {
+		return language
+	}
+	return MetadataLanguageChinese
+}
+
+// ProviderIsEnglish reports whether a provider stores English metadata.
+func ProviderIsEnglish(provider Provider) bool {
+	return ProviderMetadataLanguage(provider) == MetadataLanguageEnglish
+}
+
+// PreferredProvider chooses the metadata source based on the configured language.
+func PreferredProvider() Provider {
+	if CurrentMetadataLanguageIsEnglish() {
 		return ProviderJavDatabase
 	}
 	return ProviderJavBus
@@ -114,14 +146,10 @@ func ProviderForMetadataLanguage(value string) Provider {
 
 // PreferredLookupProvider returns the scraper that matches the configured metadata language.
 func PreferredLookupProvider() JavLookupProvider {
-	switch PreferredProvider() {
-	case ProviderJavDatabase:
-		return JavDatabaseProvider
-	case ProviderJavDB:
-		return JavDBProvider
-	default:
-		return JavBusProvider
+	if provider, ok := lookupProvidersByProvider[PreferredProvider()]; ok {
+		return provider
 	}
+	return JavBusProvider
 }
 
 // Info holds basic metadata extracted from a JAV metadata provider.

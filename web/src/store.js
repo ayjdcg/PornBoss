@@ -13,6 +13,7 @@ import {
   deleteDirectory as deleteDirectoryApi,
   fetchJavs,
   fetchJavIdols,
+  fetchJavStudios,
   fetchJavTags,
   fetchConfig,
 } from '@/api'
@@ -22,11 +23,13 @@ import { zh } from '@/utils/i18n'
 
 const VIDEO_PAGE_SIZE = 25
 const JAV_PAGE_SIZE = 24
+const JAV_STUDIO_PAGE_SIZE = 24
 const JAV_GRID_COLUMNS_AUTO = 0
 let videoLoadSeq = 0
 let lastVideoFetchKey = null
 let lastJavFetchKey = null
 let lastIdolFetchKey = null
+let lastStudioFetchKey = null
 let lastTagFetchKey = null
 let lastJavTagFetchKey = null
 let tagFetchInFlight = null
@@ -117,7 +120,7 @@ export const useStore = create((set, get) => ({
   javRandomMode: false,
   javRandomSeed: null,
   viewMode: 'video', // video | jav
-  javTab: 'list', // list | idol
+  javTab: 'list', // list | idol | studio
   javPage: 1,
   javPageSize: JAV_PAGE_SIZE,
   javGridColumns: JAV_GRID_COLUMNS_AUTO,
@@ -139,6 +142,8 @@ export const useStore = create((set, get) => ({
   javSearchTerm: '',
   javActors: [],
   javTags: [],
+  javStudioId: null,
+  javStudioName: '',
   javItems: [],
   javTotal: 0,
   javLoading: false,
@@ -150,9 +155,14 @@ export const useStore = create((set, get) => ({
   idolTotal: 0,
   idolLoading: false,
   idolError: null,
+  studioPage: 1,
+  studioItems: [],
+  studioTotal: 0,
+  studioLoading: false,
+  studioError: null,
   setIdolPageSize: (size) => {
     const next = Math.max(1, Math.floor(Number(size) || JAV_PAGE_SIZE))
-    set({ idolPageSize: next, idolPage: 1 })
+    set({ idolPageSize: next, idolPage: 1, studioPage: 1 })
   },
   setIdolSort: (sort) => {
     const normalized = normalizeIdolSort(sort)
@@ -258,12 +268,12 @@ export const useStore = create((set, get) => ({
     set({ viewMode: mode, ...(mode === 'jav' ? { videoTempSort: '' } : { javTempSort: '' }) })
   },
   setJavTab: (tab) => {
-    if (tab !== 'list' && tab !== 'idol') return
+    if (tab !== 'list' && tab !== 'idol' && tab !== 'studio') return
     set({ javTab: tab, javTempSort: '' })
   },
   setJavActors: (actors) => {
     const clean = Array.from(new Set((actors || []).map((n) => (n || '').trim()).filter(Boolean)))
-    set({ javActors: clean, javTempSort: '', javPage: 1 })
+    set({ javActors: clean, javStudioId: null, javStudioName: '', javTempSort: '', javPage: 1 })
   },
   setJavTags: (tags) => {
     const clean = Array.from(
@@ -273,20 +283,38 @@ export const useStore = create((set, get) => ({
           .filter((id) => Number.isFinite(id) && id > 0)
       )
     )
-    set({ javTags: clean, javTempSort: '', javPage: 1 })
+    set({ javTags: clean, javStudioId: null, javStudioName: '', javTempSort: '', javPage: 1 })
+  },
+  setJavStudio: (studio) => {
+    const id = Number(studio?.id)
+    if (!Number.isFinite(id) || id <= 0) {
+      set({ javStudioId: null, javStudioName: '', javPage: 1 })
+      return
+    }
+    set({
+      javStudioId: id,
+      javStudioName: String(studio?.name || '').trim(),
+      javActors: [],
+      javTags: [],
+      javTempSort: '',
+      javRandomMode: false,
+      javRandomSeed: null,
+      javPage: 1,
+    })
   },
   setJavPage: (p) => {
     const state = get()
     set({ javPage: state.javRandomMode ? 1 : p })
   },
   setIdolPage: (p) => set({ idolPage: p }),
+  setStudioPage: (p) => set({ studioPage: p }),
   setJavSearchTerm: (value, options = {}) => {
     const { resetPage = true } = options
     const trimmed = (value || '').trim()
     const state = get()
     if (trimmed === state.javSearchTerm) {
       if (resetPage && state.javPage !== 1) {
-        set({ javTempSort: '', javPage: 1, idolPage: 1 })
+        set({ javTempSort: '', javPage: 1, idolPage: 1, studioPage: 1 })
       }
       return
     }
@@ -294,6 +322,7 @@ export const useStore = create((set, get) => ({
     if (resetPage) {
       next.javPage = 1
       next.idolPage = 1
+      next.studioPage = 1
     }
     set(next)
   },
@@ -489,6 +518,7 @@ export const useStore = create((set, get) => ({
       javSearchTerm,
       javActors,
       javTags,
+      javStudioId,
       javSort,
       javTempSort,
       javRandomMode,
@@ -504,6 +534,7 @@ export const useStore = create((set, get) => ({
       search,
       (javActors || []).join(','),
       (javTags || []).join(','),
+      javStudioId || '',
       effectiveSort,
       javRandomMode ? javRandomSeed || '' : '',
       directoryIds.join(','),
@@ -520,6 +551,7 @@ export const useStore = create((set, get) => ({
         search,
         actors: javActors,
         tagIds: javTags,
+        studioId: javStudioId,
         sort: javRandomMode ? 'random' : effectiveSort,
         seed: javRandomMode ? javRandomSeed : null,
         directoryIds,
@@ -561,6 +593,35 @@ export const useStore = create((set, get) => ({
       set({ idolError: e.message || zh('加载女优失败', 'Failed to load idols') })
     } finally {
       set({ idolLoading: false })
+    }
+  },
+  loadJavStudios: async (options = {}) => {
+    const { studioPage, javSearchTerm } = get()
+    const directoryIds = directoryQueryIds(get())
+    const search = javSearchTerm || ''
+    const key = ['studio', studioPage, JAV_STUDIO_PAGE_SIZE, search, directoryIds.join(',')].join(
+      '|'
+    )
+    if (!options.force && key === lastStudioFetchKey) {
+      return
+    }
+    lastStudioFetchKey = key
+    set({ studioLoading: true, studioError: null })
+    try {
+      const resp = await fetchJavStudios({
+        limit: JAV_STUDIO_PAGE_SIZE,
+        offset: (studioPage - 1) * JAV_STUDIO_PAGE_SIZE,
+        search,
+        directoryIds,
+      })
+      set({
+        studioItems: resp.items || [],
+        studioTotal: resp.total || 0,
+      })
+    } catch (e) {
+      set({ studioError: e.message || zh('加载片商失败', 'Failed to load studios') })
+    } finally {
+      set({ studioLoading: false })
     }
   },
 
@@ -659,6 +720,7 @@ export const useStore = create((set, get) => ({
       page: 1,
       javPage: 1,
       idolPage: 1,
+      studioPage: 1,
       videoTempSort: '',
       javTempSort: '',
       randomMode: false,
@@ -669,6 +731,7 @@ export const useStore = create((set, get) => ({
     lastVideoFetchKey = null
     lastJavFetchKey = null
     lastIdolFetchKey = null
+    lastStudioFetchKey = null
     lastTagFetchKey = null
     lastJavTagFetchKey = null
   },
@@ -699,10 +762,12 @@ export const useStore = create((set, get) => ({
       page: 1,
       javPage: 1,
       idolPage: 1,
+      studioPage: 1,
     })
     lastVideoFetchKey = null
     lastJavFetchKey = null
     lastIdolFetchKey = null
+    lastStudioFetchKey = null
     lastTagFetchKey = null
     lastJavTagFetchKey = null
   },

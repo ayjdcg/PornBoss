@@ -7,6 +7,7 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import PhotoLibraryOutlinedIcon from '@mui/icons-material/PhotoLibraryOutlined'
 import SearchIcon from '@mui/icons-material/Search'
+import VideocamOutlinedIcon from '@mui/icons-material/VideocamOutlined'
 
 import { fetchJavIdolPreview } from '@/api'
 import { IdolCard, getIdolCardLayoutProps } from '@/components/JavIdolGrid'
@@ -69,6 +70,7 @@ export default function JavGrid({
   columns = 0,
   onPlay,
   onIdolClick,
+  onStudioClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -138,6 +140,7 @@ export default function JavGrid({
           item={item}
           onPlay={onPlay}
           onIdolClick={onIdolClick}
+          onStudioClick={onStudioClick}
           onTagClick={onTagClick}
           onEditTags={onEditTags}
           onOpenFile={onOpenFile}
@@ -193,6 +196,7 @@ function JavCard({
   item,
   onPlay,
   onIdolClick,
+  onStudioClick,
   onTagClick,
   onEditTags,
   onOpenFile,
@@ -215,6 +219,8 @@ function JavCard({
   const durationText = item?.duration_min
     ? zh(`${item.duration_min} 分钟`, `${item.duration_min} min`)
     : ''
+  const studioText = String(item?.studio?.name || '').trim()
+  const canFilterStudio = studioText && typeof onStudioClick === 'function'
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
@@ -426,13 +432,42 @@ function JavCard({
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600">
           <span className="inline-flex items-center gap-1">
-            <DurationIcon />
+            <Tooltip title={zh('时长', 'Duration')} arrow>
+              <span className="inline-flex">
+                <DurationIcon />
+              </span>
+            </Tooltip>
             <span>{durationText || zh('时长未知', 'Unknown duration')}</span>
           </span>
           <span className="inline-flex items-center gap-1">
-            <ReleaseIcon />
+            <Tooltip title={zh('发行日期', 'Release date')} arrow>
+              <span className="inline-flex">
+                <ReleaseIcon />
+              </span>
+            </Tooltip>
             <span>{releaseText}</span>
           </span>
+          {studioText ? (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <Tooltip title={zh('片商', 'Studio')} arrow>
+                <span className="inline-flex">
+                  <VideocamOutlinedIcon sx={{ fontSize: 16 }} className="shrink-0 text-sky-600" />
+                </span>
+              </Tooltip>
+              <button
+                type="button"
+                className={`min-w-0 truncate text-left ${
+                  canFilterStudio ? 'cursor-pointer hover:text-blue-700 hover:underline' : ''
+                }`}
+                onClick={() => {
+                  if (canFilterStudio) onStudioClick(item.studio)
+                }}
+                disabled={!canFilterStudio}
+              >
+                {studioText}
+              </button>
+            </span>
+          ) : null}
         </div>
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
           <div className="flex flex-wrap gap-1">

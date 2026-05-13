@@ -18,6 +18,7 @@ import (
 )
 
 const maxPageSize = 500
+const maxJavDisplayRows = 12
 
 func getConfig(c *gin.Context) {
 	cfg, err := dbpkg.ListConfig(c.Request.Context())
@@ -40,6 +41,9 @@ func updateConfig(c *gin.Context) {
 		VideoPageSize          *int                  `json:"video_page_size"`
 		JavPageSize            *int                  `json:"jav_page_size"`
 		JavGridColumns         *int                  `json:"jav_grid_columns"`
+		JavTitleMaxRows        *int                  `json:"jav_title_max_rows"`
+		JavIdolTagMaxRows      *int                  `json:"jav_idol_tag_max_rows"`
+		JavTagMaxRows          *int                  `json:"jav_tag_max_rows"`
 		IdolPageSize           *int                  `json:"idol_page_size"`
 		VideoHideJav           *bool                 `json:"video_hide_jav"`
 		VideoSort              string                `json:"video_sort"`
@@ -93,6 +97,36 @@ func updateConfig(c *gin.Context) {
 			columns = 12
 		}
 		entries["jav_grid_columns"] = strconv.Itoa(columns)
+	}
+	if req.JavTitleMaxRows != nil {
+		rows := *req.JavTitleMaxRows
+		if rows < 0 {
+			rows = 0
+		}
+		if rows > maxJavDisplayRows {
+			rows = maxJavDisplayRows
+		}
+		entries["jav_title_max_rows"] = strconv.Itoa(rows)
+	}
+	if req.JavIdolTagMaxRows != nil {
+		rows := *req.JavIdolTagMaxRows
+		if rows < 0 {
+			rows = 0
+		}
+		if rows > maxJavDisplayRows {
+			rows = maxJavDisplayRows
+		}
+		entries["jav_idol_tag_max_rows"] = strconv.Itoa(rows)
+	}
+	if req.JavTagMaxRows != nil {
+		rows := *req.JavTagMaxRows
+		if rows < 0 {
+			rows = 0
+		}
+		if rows > maxJavDisplayRows {
+			rows = maxJavDisplayRows
+		}
+		entries["jav_tag_max_rows"] = strconv.Itoa(rows)
 	}
 	if req.IdolPageSize != nil {
 		if v, ok := clampSize(*req.IdolPageSize); ok {

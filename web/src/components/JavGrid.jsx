@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { IconButton, Popper, Tooltip } from '@mui/material'
 import Fade from '@mui/material/Fade'
+import ExpandLessIcon from '@mui/icons-material/ExpandLess'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import LocalOfferOutlinedIcon from '@mui/icons-material/LocalOfferOutlined'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import FolderOpenIcon from '@mui/icons-material/FolderOpen'
@@ -68,6 +70,9 @@ function ReleaseIcon() {
 export default function JavGrid({
   items,
   columns = 0,
+  titleMaxRows = 2,
+  idolTagMaxRows = 2,
+  tagMaxRows = 2,
   buildJavUrl,
   onPlay,
   onIdolClick,
@@ -152,6 +157,9 @@ export default function JavGrid({
           loadIdolPreview={loadIdolPreview}
           onOpenCoverPreview={setCoverPreview}
           javMetadataLanguage={javMetadataLanguage}
+          titleMaxRows={titleMaxRows}
+          idolTagMaxRows={idolTagMaxRows}
+          tagMaxRows={tagMaxRows}
         />
       ))}
       {coverPreview ? (
@@ -220,6 +228,370 @@ function CoverPreviewModal({ preview, onClose }) {
   )
 }
 
+function normalizeIdolTagMaxRows(value) {
+  const rows = Math.floor(Number(value))
+  return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 12) : 0
+}
+
+function normalizeJavTagMaxRows(value) {
+  const rows = Math.floor(Number(value))
+  return Number.isFinite(rows) && rows > 0 ? Math.min(rows, 12) : 0
+}
+
+function normalizeJavTitleMaxRows(value) {
+  const rows = Math.floor(Number(value))
+  return Number.isFinite(rows) && rows >= 0 ? Math.min(rows, 12) : 2
+}
+
+function TagCollapseToggleButton({
+  expanded,
+  count,
+  title,
+  expandedClassName,
+  collapsedClassName,
+  onToggle,
+}) {
+  const [tooltipOpen, setTooltipOpen] = useState(false)
+  const [activeTooltipTitle, setActiveTooltipTitle] = useState(title)
+  const className = expanded ? expandedClassName : collapsedClassName
+
+  const button = (
+    <button
+      type="button"
+      onClick={() => {
+        setTooltipOpen(false)
+        onToggle?.()
+      }}
+      aria-label={title}
+      className={className}
+    >
+      {expanded ? (
+        <ExpandLessIcon sx={{ fontSize: 15 }} />
+      ) : (
+        <>
+          <span>{count}</span>
+          <ExpandMoreIcon sx={{ fontSize: 15 }} />
+        </>
+      )}
+    </button>
+  )
+
+  return (
+    <Tooltip
+      title={activeTooltipTitle}
+      open={tooltipOpen}
+      onOpen={() => {
+        setActiveTooltipTitle(title)
+        setTooltipOpen(true)
+      }}
+      onClose={() => setTooltipOpen(false)}
+      TransitionProps={{ timeout: 0 }}
+    >
+      {button}
+    </Tooltip>
+  )
+}
+
+function IdolTagList({
+  idols,
+  maxRows,
+  buildIdolFilterHref,
+  onIdolClick,
+  onFilterLinkClick,
+  onIdolHoverStart,
+  onIdolHoverEnd,
+}) {
+  const measureRef = useRef(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(idols.length)
+  const rowLimit = normalizeIdolTagMaxRows(maxRows)
+  const identity = useMemo(
+    () => (idols || []).map((idol) => idol?.id || idol?.name || '').join('|'),
+    [idols]
+  )
+
+  useEffect(() => {
+    setExpanded(false)
+    setVisibleCount(idols.length)
+  }, [identity, idols.length, rowLimit])
+
+  useEffect(() => {
+    if (rowLimit <= 0) {
+      setOverflowing(false)
+      setVisibleCount(idols.length)
+      return undefined
+    }
+
+    const measureList = measureRef.current
+    if (!measureList) return undefined
+
+    const measure = () => {
+      const containerWidth = measureList.clientWidth
+      const tagNodes = Array.from(measureList.querySelectorAll('[data-idol-tag-measure]'))
+      const toggleNode = measureList.querySelector('[data-idol-toggle-measure]')
+
+      if (containerWidth <= 0 || tagNodes.length === 0 || !toggleNode) {
+        setOverflowing(false)
+        setVisibleCount(idols.length)
+        return
+      }
+
+      const tagWidths = tagNodes.map((node) => node.offsetWidth)
+      const toggleWidth = toggleNode.offsetWidth
+      const gap = Number.parseFloat(window.getComputedStyle(measureList).columnGap) || 0
+      const fullRows = countFlexRows(tagWidths, 0, containerWidth, gap)
+      const isOverflowing = fullRows > rowLimit
+      setOverflowing(isOverflowing)
+      if (!isOverflowing) {
+        setVisibleCount(idols.length)
+        return
+      }
+
+      let low = 0
+      let high = tagWidths.length
+      let best = 0
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2)
+        const rows = countFlexRows(tagWidths.slice(0, mid), toggleWidth, containerWidth, gap)
+        if (rows <= rowLimit) {
+          best = mid
+          low = mid + 1
+        } else {
+          high = mid - 1
+        }
+      }
+      setVisibleCount(best)
+    }
+
+    measure()
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    resizeObserver?.observe(measureList)
+    window.addEventListener('resize', measure)
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [identity, idols.length, rowLimit])
+
+  const showToggle = rowLimit > 0 && overflowing
+  const renderedIdols = showToggle && !expanded ? idols.slice(0, visibleCount) : idols
+  const toggleTitle = expanded
+    ? zh('点击收回', 'Click to collapse')
+    : zh(`共 ${idols.length} 位女优，点击展开`, `${idols.length} actresses total, click to expand`)
+
+  return (
+    <div className="relative">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+        {renderedIdols.map((idol) => (
+          <a
+            key={idol.id || idol.name}
+            href={buildIdolFilterHref(idol)}
+            className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
+            onMouseEnter={(event) => onIdolHoverStart(idol, event)}
+            onMouseLeave={onIdolHoverEnd}
+            onFocus={(event) => onIdolHoverStart(idol, event)}
+            onBlur={onIdolHoverEnd}
+            onClick={(event) => onFilterLinkClick(event, () => onIdolClick?.(idol))}
+          >
+            {idol.name}
+          </a>
+        ))}
+        {showToggle ? (
+          <TagCollapseToggleButton
+            expanded={expanded}
+            count={idols.length}
+            title={toggleTitle}
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-purple-300 bg-white px-1.5 text-[11px] font-semibold text-purple-700 shadow-sm transition hover:border-purple-500 hover:bg-purple-50"
+            onToggle={() => setExpanded((current) => !current)}
+          />
+        ) : null}
+      </div>
+      {rowLimit > 0 ? (
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-1 opacity-0"
+        >
+          {idols.map((idol) => (
+            <span
+              key={idol.id || idol.name}
+              data-idol-tag-measure
+              className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium"
+            >
+              {idol.name}
+            </span>
+          ))}
+          <span
+            data-idol-toggle-measure
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[11px] font-semibold"
+          >
+            <span>{idols.length}</span>
+            <ExpandMoreIcon sx={{ fontSize: 15 }} />
+          </span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function countFlexRows(itemWidths, trailingWidth, containerWidth, gap) {
+  const widths = trailingWidth > 0 ? [...itemWidths, trailingWidth] : itemWidths
+  if (widths.length === 0) return 0
+
+  let rows = 1
+  let rowWidth = 0
+  for (const width of widths) {
+    const nextWidth = rowWidth === 0 ? width : rowWidth + gap + width
+    if (rowWidth > 0 && nextWidth > containerWidth) {
+      rows += 1
+      rowWidth = width
+    } else {
+      rowWidth = nextWidth
+    }
+  }
+  return rows
+}
+
+function JavTagList({ tags, maxRows, buildTagFilterHref, onTagClick, onFilterLinkClick }) {
+  const measureRef = useRef(null)
+  const [expanded, setExpanded] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(tags.length)
+  const rowLimit = normalizeJavTagMaxRows(maxRows)
+  const identity = useMemo(
+    () => (tags || []).map((tag) => tag?.id || tag?.name || '').join('|'),
+    [tags]
+  )
+
+  useEffect(() => {
+    setExpanded(false)
+    setVisibleCount(tags.length)
+  }, [identity, tags.length, rowLimit])
+
+  useEffect(() => {
+    if (rowLimit <= 0) {
+      setOverflowing(false)
+      setVisibleCount(tags.length)
+      return undefined
+    }
+
+    const measureList = measureRef.current
+    if (!measureList) return undefined
+
+    const measure = () => {
+      const containerWidth = measureList.clientWidth
+      const tagNodes = Array.from(measureList.querySelectorAll('[data-jav-tag-measure]'))
+      const toggleNode = measureList.querySelector('[data-jav-tag-toggle-measure]')
+
+      if (containerWidth <= 0 || tagNodes.length === 0 || !toggleNode) {
+        setOverflowing(false)
+        setVisibleCount(tags.length)
+        return
+      }
+
+      const tagWidths = tagNodes.map((node) => node.offsetWidth)
+      const toggleWidth = toggleNode.offsetWidth
+      const gap = Number.parseFloat(window.getComputedStyle(measureList).columnGap) || 0
+      const fullRows = countFlexRows(tagWidths, 0, containerWidth, gap)
+      const isOverflowing = fullRows > rowLimit
+      setOverflowing(isOverflowing)
+      if (!isOverflowing) {
+        setVisibleCount(tags.length)
+        return
+      }
+
+      let low = 0
+      let high = tagWidths.length
+      let best = 0
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2)
+        const rows = countFlexRows(tagWidths.slice(0, mid), toggleWidth, containerWidth, gap)
+        if (rows <= rowLimit) {
+          best = mid
+          low = mid + 1
+        } else {
+          high = mid - 1
+        }
+      }
+      setVisibleCount(best)
+    }
+
+    measure()
+    const resizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null
+    resizeObserver?.observe(measureList)
+    window.addEventListener('resize', measure)
+    return () => {
+      resizeObserver?.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [identity, rowLimit, tags.length])
+
+  const showToggle = rowLimit > 0 && overflowing
+  const renderedTags = showToggle && !expanded ? tags.slice(0, visibleCount) : tags
+  const toggleTitle = expanded
+    ? zh('点击收回', 'Click to collapse')
+    : zh(`共 ${tags.length} 个标签，点击展开`, `${tags.length} tags total, click to expand`)
+
+  return (
+    <div className="relative">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+        {renderedTags.map((tag) => {
+          const isUser = isUserJavTag(tag)
+          const tagClass = isUser
+            ? 'bg-emerald-500 hover:bg-emerald-600'
+            : 'bg-orange-500 hover:bg-orange-600'
+          return (
+            <a
+              key={tag.id || tag.name}
+              href={buildTagFilterHref(tag)}
+              className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
+              onClick={(event) => onFilterLinkClick(event, () => onTagClick?.(tag))}
+            >
+              {tag.name}
+            </a>
+          )
+        })}
+        {showToggle ? (
+          <TagCollapseToggleButton
+            expanded={expanded}
+            count={tags.length}
+            title={toggleTitle}
+            expandedClassName="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-gray-600 shadow-sm transition hover:border-gray-400 hover:bg-gray-100"
+            collapsedClassName="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border border-orange-300 bg-white px-1.5 text-[11px] font-semibold text-orange-700 shadow-sm transition hover:border-orange-500 hover:bg-orange-50"
+            onToggle={() => setExpanded((current) => !current)}
+          />
+        ) : null}
+      </div>
+      {rowLimit > 0 ? (
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap gap-1 opacity-0"
+        >
+          {tags.map((tag) => (
+            <span
+              key={tag.id || tag.name}
+              data-jav-tag-measure
+              className="rounded-full px-2 py-1 text-xs font-medium"
+            >
+              {tag.name}
+            </span>
+          ))}
+          <span
+            data-jav-tag-toggle-measure
+            className="inline-flex h-6 shrink-0 items-center gap-1 rounded-md border px-1.5 text-[11px] font-semibold"
+          >
+            <span>{tags.length}</span>
+            <ExpandMoreIcon sx={{ fontSize: 15 }} />
+          </span>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 function JavCard({
   item,
   onPlay,
@@ -235,6 +607,9 @@ function JavCard({
   loadIdolPreview,
   onOpenCoverPreview,
   javMetadataLanguage,
+  titleMaxRows,
+  idolTagMaxRows,
+  tagMaxRows,
 }) {
   const primaryVideo = useMemo(() => (item?.videos || [])[0], [item])
   const { bgWidthPercent, coverAspectPercent } = useMemo(() => getIdolCardLayoutProps(), [])
@@ -253,6 +628,16 @@ function JavCard({
   const codeText = item?.code?.trim()
   const mainTitle = getJavDisplayTitle(item, javMetadataLanguage)
   const titleText = [codeText, mainTitle].filter(Boolean).join(' ')
+  const normalizedTitleMaxRows = normalizeJavTitleMaxRows(titleMaxRows)
+  const titleClampStyle =
+    normalizedTitleMaxRows > 0
+      ? {
+          display: '-webkit-box',
+          WebkitBoxOrient: 'vertical',
+          WebkitLineClamp: normalizedTitleMaxRows,
+          overflow: 'hidden',
+        }
+      : undefined
   const videos = item?.videos || []
   const openableVideos = videos.filter((video) =>
     Boolean(video?.path && (video?.directory?.path || video?.directory_path))
@@ -514,7 +899,7 @@ function JavCard({
         ) : null}
       </div>
       <div className="flex flex-1 flex-col gap-2 p-3">
-        <div className="line-clamp-2 text-sm leading-tight" title={titleText}>
+        <div className="text-sm leading-tight" title={titleText} style={titleClampStyle}>
           {codeText ? <span className="font-semibold text-gray-800">{codeText}</span> : null}
           {codeText ? ' ' : null}
           <span className="font-medium text-gray-800">{mainTitle}</span>
@@ -559,21 +944,16 @@ function JavCard({
           ) : null}
         </div>
         {Array.isArray(item?.idols) && item.idols.length > 0 && (
-          <div className="flex flex-wrap gap-1">
-            {item.idols.map((idol) => (
-              <a
-                key={idol.id || idol.name}
-                href={buildIdolFilterHref(idol)}
-                className="rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700 transition hover:bg-purple-200"
-                onMouseEnter={(event) => handleIdolHoverStart(idol, event)}
-                onMouseLeave={scheduleHoverClose}
-                onFocus={(event) => handleIdolHoverStart(idol, event)}
-                onBlur={scheduleHoverClose}
-                onClick={(event) => handleFilterLinkClick(event, () => onIdolClick?.(idol))}
-              >
-                {idol.name}
-              </a>
-            ))}
+          <>
+            <IdolTagList
+              idols={item.idols}
+              maxRows={idolTagMaxRows}
+              buildIdolFilterHref={buildIdolFilterHref}
+              onIdolClick={onIdolClick}
+              onFilterLinkClick={handleFilterLinkClick}
+              onIdolHoverStart={handleIdolHoverStart}
+              onIdolHoverEnd={scheduleHoverClose}
+            />
             <Popper
               open={Boolean(previewIdol && hoverAnchorEl)}
               anchorEl={hoverAnchorEl}
@@ -606,27 +986,16 @@ function JavCard({
                 ) : null}
               </div>
             </Popper>
-          </div>
+          </>
         )}
         {tags.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            {tags.map((tag) => {
-              const isUser = isUserJavTag(tag)
-              const tagClass = isUser
-                ? 'bg-emerald-500 hover:bg-emerald-600'
-                : 'bg-orange-500 hover:bg-orange-600'
-              return (
-                <a
-                  key={tag.id || tag.name}
-                  href={buildTagFilterHref(tag)}
-                  className={`rounded-full px-2 py-1 text-xs font-medium text-white transition ${tagClass}`}
-                  onClick={(event) => handleFilterLinkClick(event, () => onTagClick?.(tag))}
-                >
-                  {tag.name}
-                </a>
-              )
-            })}
-          </div>
+          <JavTagList
+            tags={tags}
+            maxRows={tagMaxRows}
+            buildTagFilterHref={buildTagFilterHref}
+            onTagClick={onTagClick}
+            onFilterLinkClick={handleFilterLinkClick}
+          />
         )}
         <div className="flex flex-wrap items-center gap-2">
           {Array.isArray(item?.videos) && item.videos.length > 1 && (

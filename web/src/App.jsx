@@ -43,6 +43,7 @@ import { isChineseLocale, zh } from '@/utils/i18n'
 import { directoryQueryIds, useStore, videoSelectionKey } from '@/store'
 
 const JAV_STUDIO_PAGE_SIZE = 24
+const HISTORY_INDEX_KEY = '__pornbossHistoryIndex'
 
 const normalizeDefaultPlayer = (value) =>
   String(value || '')
@@ -51,9 +52,19 @@ const normalizeDefaultPlayer = (value) =>
     ? 'system'
     : 'mpv'
 
+const normalizeInitialViewMode = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase() === 'jav'
+    ? 'jav'
+    : 'video'
+
 export default function App() {
   const isPoppingRef = useRef(false)
   const lastUrlRef = useRef(window.location.pathname + window.location.search)
+  const browserInitialCanGoBackRef = useRef(window.history.length > 1)
+  const browserHistoryIndexRef = useRef(0)
+  const browserHistoryMaxRef = useRef(0)
   const pendingVideoTagIdsRef = useRef(null)
   const {
     page,
@@ -168,9 +179,49 @@ export default function App() {
   const [javSearchInput, setJavSearchInput] = useState('')
   const [hydrated, setHydrated] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [browserNavigation, setBrowserNavigation] = useState({
+    canGoBack: window.history.length > 1,
+    canGoForward: false,
+  })
   const isJavMode = viewMode === 'jav'
   const isModifiedClick = (e) =>
     e && (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0)
+
+  const setBrowserNavigationFromIndex = useCallback((index, max) => {
+    browserHistoryIndexRef.current = index
+    browserHistoryMaxRef.current = max
+    setBrowserNavigation({
+      canGoBack: index > 0 || (index === 0 && browserInitialCanGoBackRef.current),
+      canGoForward: index < max,
+    })
+  }, [])
+
+  const readBrowserHistoryIndex = useCallback((state = window.history.state) => {
+    const rawIndex = Number(state?.[HISTORY_INDEX_KEY])
+    return Number.isFinite(rawIndex) && rawIndex >= 0 ? Math.floor(rawIndex) : 0
+  }, [])
+
+  const ensureBrowserHistoryState = useCallback(() => {
+    const currentState = window.history.state || {}
+    const hasIndex = Number.isFinite(Number(currentState[HISTORY_INDEX_KEY]))
+    const index = hasIndex ? readBrowserHistoryIndex(currentState) : browserHistoryIndexRef.current
+    if (!hasIndex) {
+      window.history.replaceState(
+        { ...currentState, [HISTORY_INDEX_KEY]: index },
+        '',
+        window.location.pathname + window.location.search
+      )
+    }
+    setBrowserNavigationFromIndex(index, Math.max(browserHistoryMaxRef.current, index))
+  }, [readBrowserHistoryIndex, setBrowserNavigationFromIndex])
+
+  const handleBrowserBack = useCallback(() => {
+    window.history.back()
+  }, [])
+
+  const handleBrowserForward = useCallback(() => {
+    window.history.forward()
+  }, [])
   const selectedTagIds = useMemo(
     () =>
       tags
@@ -230,6 +281,7 @@ export default function App() {
       }
     : null
   const defaultPlayer = normalizeDefaultPlayer(config?.default_player)
+  const initialViewMode = normalizeInitialViewMode(config?.initial_view_mode)
   const alternatePlayer = defaultPlayer === 'system' ? 'mpv' : 'system'
   const alternatePlayerLabel =
     alternatePlayer === 'mpv'
@@ -585,9 +637,6 @@ export default function App() {
       if (searchVal) {
         sp.set('search', searchVal)
       }
-      if (sortOrder && sortOrder !== 'recent') {
-        sp.set('sort', sortOrder)
-      }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
       const tempSortVal = hasTempSortOverride
         ? normalizeVideoSort(tempSortOverride, '')
@@ -615,7 +664,7 @@ export default function App() {
       const query = sp.toString()
       return `${window.location.pathname}${query ? `?${query}` : ''}`
     },
-    [page, randomMode, randomSeed, searchTerm, selectedTagIds, sortOrder, videoTempSort]
+    [page, randomMode, randomSeed, searchTerm, selectedTagIds, videoTempSort]
   )
 
   const buildJavUrl = useCallback(
@@ -629,7 +678,6 @@ export default function App() {
         studioName: studioNameOverride,
         seriesId: seriesIdOverride,
         seriesName: seriesNameOverride,
-        sort: sortOverride,
         tagIds: tagIdsOverride,
         random: randomOverride,
         seed: seedOverride,
@@ -673,23 +721,6 @@ export default function App() {
           sp.set('series_name', seriesName)
         }
       }
-      const hasSortOverride = Object.prototype.hasOwnProperty.call(options, 'sort')
-      const normalizedSortOverride = hasSortOverride
-        ? tab === 'idol'
-          ? normalizeIdolSort(sortOverride, null)
-          : normalizeJavSort(sortOverride, null)
-        : null
-      const sortVal =
-        tab === 'idol'
-          ? String(normalizedSortOverride ?? idolSort ?? '').trim()
-          : String(normalizedSortOverride ?? javSort ?? '').trim()
-      if (tab === 'idol') {
-        if (sortVal && sortVal !== 'work') {
-          sp.set('sort', sortVal)
-        }
-      } else if (tab === 'list' && sortVal && sortVal !== 'recent') {
-        sp.set('sort', sortVal)
-      }
       const hasTempSortOverride = Object.prototype.hasOwnProperty.call(options, 'tempSort')
       const tempSortVal = hasTempSortOverride ? normalizeJavSort(tempSortOverride, '') : javTempSort
       const randomFlag = randomOverride ?? javRandomMode
@@ -732,9 +763,7 @@ export default function App() {
       javTempSort,
       javSearchTerm,
       javTab,
-      javSort,
       javTags,
-      idolSort,
       javRandomMode,
       javRandomSeed,
     ]
@@ -782,7 +811,6 @@ export default function App() {
       }
       if (parsed.view === 'jav') {
         const { jav } = parsed
-        const currentIdolSort = useStore.getState().idolSort
         useStore.setState({
           viewMode: 'jav',
           videoTempSort: '',
@@ -800,9 +828,7 @@ export default function App() {
           idolPage: jav.tab === 'idol' ? jav.page : 1,
           studioPage: jav.tab === 'studio' ? jav.page : 1,
           seriesPage: jav.tab === 'series' ? jav.page : 1,
-          javSort: jav.tab === 'list' ? jav.sort : 'recent',
           javTempSort: jav.tab !== 'list' || jav.random ? '' : jav.tempSort,
-          idolSort: jav.tab === 'idol' ? jav.idolSort : currentIdolSort,
         })
         setJavSearchInput(jav.search)
         if (jav.tab === 'list' && jav.random) {
@@ -816,7 +842,6 @@ export default function App() {
       useStore.setState({
         viewMode: 'video',
         javTempSort: '',
-        sortOrder: video.sort,
         videoTempSort: video.random ? '' : video.tempSort,
         randomMode: video.random,
         randomSeed: video.random ? video.seed : null,
@@ -839,8 +864,10 @@ export default function App() {
   )
 
   useEffect(() => {
+    if (!configLoaded) return
+    ensureBrowserHistoryState()
     const apply = (fromPopstate = false) => {
-      const parsed = parseUrlState()
+      const parsed = parseUrlState(window.location.search, { defaultView: initialViewMode })
       if (parsed.view === 'jav') {
         useStore.setState({ viewMode: 'jav' })
       } else {
@@ -849,10 +876,22 @@ export default function App() {
       applyUrlState(parsed, { fromPopstate })
     }
     apply(false)
-    const onPop = () => apply(true)
+    const onPop = (event) => {
+      const index = readBrowserHistoryIndex(event.state)
+      const max = Math.max(browserHistoryMaxRef.current, index)
+      setBrowserNavigationFromIndex(index, max)
+      apply(true)
+    }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
-  }, [applyUrlState])
+  }, [
+    applyUrlState,
+    ensureBrowserHistoryState,
+    readBrowserHistoryIndex,
+    setBrowserNavigationFromIndex,
+    configLoaded,
+    initialViewMode,
+  ])
 
   useEffect(() => {
     setSearchInput(searchTerm)
@@ -968,7 +1007,6 @@ export default function App() {
           viewMode,
           page,
           searchTerm,
-          sortOrder,
           videoTempSort,
           selectedTags,
           randomMode,
@@ -982,11 +1020,9 @@ export default function App() {
           javStudioName,
           javSeriesId,
           javSeriesName,
-          javSort,
           javTempSort,
           javRandomMode,
           javRandomSeed,
-          idolSort,
           idolPage,
           studioPage,
           seriesPage,
@@ -1001,7 +1037,6 @@ export default function App() {
       directoryFilterMode,
       enabledDirectoryIds,
       idolPage,
-      idolSort,
       studioPage,
       seriesPage,
       javIdolIds,
@@ -1011,7 +1046,6 @@ export default function App() {
       javRandomMode,
       javRandomSeed,
       javSearchTerm,
-      javSort,
       javTempSort,
       javTab,
       javTags,
@@ -1020,7 +1054,6 @@ export default function App() {
       randomSeed,
       searchTerm,
       selectedTags,
-      sortOrder,
       videoTempSort,
       tagsByName,
       viewMode,
@@ -1043,9 +1076,15 @@ export default function App() {
       isPoppingRef.current = false
       return
     }
-    window.history.pushState({}, '', nextUrl)
+    const nextIndex = browserHistoryIndexRef.current + 1
+    window.history.pushState(
+      { ...(window.history.state || {}), [HISTORY_INDEX_KEY]: nextIndex },
+      '',
+      nextUrl
+    )
+    setBrowserNavigationFromIndex(nextIndex, nextIndex)
     lastUrlRef.current = nextUrl
-  }, [currentUrlState, hydrated])
+  }, [currentUrlState, hydrated, setBrowserNavigationFromIndex])
 
   const canPrev = page > 1
   const canNext = hasNext
@@ -1310,6 +1349,34 @@ export default function App() {
     selectedTags,
     searchTerm,
     randomMode,
+  ])
+
+  const openVideoSettings = useCallback(() => {
+    setVideoPageSizeInput(pageSize)
+    setVideoSortInput(sortOrder)
+    setVideoHideJavInput(videoHideJav)
+    setVideoSettingsOpen(true)
+  }, [pageSize, sortOrder, videoHideJav])
+
+  const openJavSettings = useCallback(() => {
+    setJavPageSizeInput(javPageSize)
+    setJavGridColumnsInput(javGridColumns)
+    setJavTitleMaxRowsInput(javTitleMaxRows)
+    setJavIdolTagMaxRowsInput(javIdolTagMaxRows)
+    setJavTagMaxRowsInput(javTagMaxRows)
+    setIdolPageSizeInput(idolPageSize)
+    setJavSortInput(javSort)
+    setIdolSortInput(idolSort)
+    setJavSettingsOpen(true)
+  }, [
+    javPageSize,
+    javGridColumns,
+    javTitleMaxRows,
+    javIdolTagMaxRows,
+    javTagMaxRows,
+    idolPageSize,
+    javSort,
+    idolSort,
   ])
 
   const submitSearch = (e) => {
@@ -2036,6 +2103,10 @@ export default function App() {
     <div className="min-h-screen">
       <TopBar
         onHome={handleHomeClick}
+        canGoBack={browserNavigation.canGoBack}
+        canGoForward={browserNavigation.canGoForward}
+        onBrowserBack={handleBrowserBack}
+        onBrowserForward={handleBrowserForward}
         isJavMode={isJavMode}
         onToggleMode={handleToggleMode}
         videoSearchInput={searchInput}
@@ -2047,8 +2118,8 @@ export default function App() {
         onRandomClick={handleVideoRandomClick}
         onOpenTagModal={handleOpenTagModal}
         onOpenJavTagModal={handleOpenJavTagModal}
-        onOpenVideoSettings={() => setVideoSettingsOpen(true)}
-        onOpenJavSettings={() => setJavSettingsOpen(true)}
+        onOpenVideoSettings={openVideoSettings}
+        onOpenJavSettings={openJavSettings}
         onOpenGlobalSettings={() => setGlobalSettingsOpen(true)}
         javSearchInput={javSearchInput}
         onJavSearchInputChange={setJavSearchInput}
@@ -2533,6 +2604,11 @@ export default function App() {
         defaultPlayer={defaultPlayer}
         onSaveDefaultPlayer={async (player) => {
           const cfg = await updateConfig({ default_player: normalizeDefaultPlayer(player) })
+          useStore.setState({ config: cfg })
+        }}
+        initialViewMode={initialViewMode}
+        onSaveInitialViewMode={async (mode) => {
+          const cfg = await updateConfig({ initial_view_mode: normalizeInitialViewMode(mode) })
           useStore.setState({ config: cfg })
         }}
         playerWindowWidth={
